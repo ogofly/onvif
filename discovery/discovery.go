@@ -2,9 +2,11 @@ package discovery
 
 import (
 	"errors"
+	"log"
 	"net"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/clbanning/mxj"
@@ -18,6 +20,11 @@ type Device struct {
 	ID    string
 	Name  string
 	XAddr string
+}
+
+type disInfo struct {
+	devices []Device
+	err     error
 }
 
 // StartDiscovery send a WS-Discovery message and wait for all matching device to respond
@@ -40,15 +47,26 @@ func StartDiscovery(duration time.Duration) ([]Device, error) {
 	// Create initial discovery results
 	discoveryResults := []Device{}
 
+	wg := sync.WaitGroup{}
+	ch := make(chan disInfo, len(ipAddrs))
 	// Discover device on each interface's network
 	for _, ipAddr := range ipAddrs {
-		devices, err := discoverDevices(ipAddr, duration)
-		if err != nil {
-			//			return []Device{}, err
+		wg.Add(1)
+		go func(addr string) {
+			devices, err := discoverDevices(addr, duration)
+			ch <- disInfo{devices, err}
+			wg.Done()
+		}(ipAddr)
+	}
+	wg.Wait()
+
+	for i := 0; i < len(ipAddrs); i++ {
+		inf := <-ch
+		if inf.err != nil {
+			log.Printf("Discovery error %v", inf.err)
 			continue
 		}
-
-		for _, dd := range devices {
+		for _, dd := range inf.devices {
 			var found bool
 
 			for _, d := range discoveryResults {
@@ -62,7 +80,6 @@ func StartDiscovery(duration time.Duration) ([]Device, error) {
 				discoveryResults = append(discoveryResults, dd)
 			}
 		}
-
 	}
 
 	if len(discoveryResults) == 0 && err != nil {

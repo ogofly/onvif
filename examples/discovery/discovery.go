@@ -14,7 +14,7 @@ import (
 func main() {
 
 	// discovery devices
-	devices, err := discovery.StartDiscovery(5 * time.Second)
+	devices, err := discovery.StartDiscovery(3 * time.Second)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -26,12 +26,13 @@ func main() {
 
 	fmt.Printf("Discovered %d devices\n", len(devices))
 	pretty.Println(devices)
+	return
 
 	// Create soap client
 	client := soap.NewClient(
 		soap.WithTimeout(time.Second * 5),
 	)
-	client.AddHeader(soap.NewWSSSecurityHeader("root", "rootpass"))
+	client.AddHeader(soap.NewWSSSecurityHeader("admin", "nanchao.org", time.Now()))
 
 	for _, d := range devices {
 		// Create devicemgmt service instance and specify xaddr (which could be received in the discovery)
